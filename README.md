@@ -1,7 +1,5 @@
 # MindGen.Ai-APP
 AN APP FOR ANXITY PREDECTION 
-# NeuroWell Predict
-
 MINDGEN.AI is an advanced AI-powered mental health assessment system designed to analyze genetic data and predict susceptibility to major mental health conditions. It offers early detection, personalized intervention recommendations, and comprehensive reporting.
 
 ## Video: I have attached the video for your refrence in the current repository
