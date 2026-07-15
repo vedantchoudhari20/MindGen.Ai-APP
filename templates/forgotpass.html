@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Password - MindGen AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}" defer></script>
+</head>
+<body>
+    <canvas id="bgCanvas" class="bg-canvas"></canvas>
+    <header>
+        <div class="nav-container">
+            <a href="/" class="logo">🧠 MindGen<span>.AI</span></a>
+            <nav class="nav-links">
+                <a href="{{ url_for('login') }}" class="nav-link">Login</a>
+                <a href="{{ url_for('register') }}" class="btn btn-primary">Register</a>
+            </nav>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'error' else 'danger' }}">
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="auth-wrapper">
+        <div class="auth-card glass-container">
+            <h2 class="auth-title">Reset Password</h2>
+            <p class="auth-subtitle">Verify your identity to choose a new password</p>
+            
+            <form action="{{ url_for('forgotpass') }}" method="POST">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" id="username" name="username" class="form-input" placeholder="johndoe12" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="security_answer" class="form-label">Your Security Answer</label>
+                    <input type="text" id="security_answer" name="security_answer" class="form-input" placeholder="Security answer (case-insensitive)" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="new_password" class="form-label">New Password</label>
+                    <input type="password" id="new_password" name="new_password" class="form-input" placeholder="••••••••" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm_password" class="form-label">Confirm New Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="••••••••" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">Update Password</button>
+            </form>
+            
+            <div class="form-footer">
+                Remember your password? <a href="{{ url_for('login') }}">Back to Login</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

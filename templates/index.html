@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindGen AI - Genomic Mental Health Insights</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}" defer></script>
+</head>
+<body>
+    <canvas id="bgCanvas" class="bg-canvas"></canvas>
+    <header>
+        <div class="nav-container">
+            <a href="/" class="logo">🧠 MindGen<span>.AI</span></a>
+            <nav class="nav-links">
+                {% if session.get('username') %}
+                    <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                    <a href="{{ url_for('previous_reports') }}" class="nav-link">History</a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="nav-link">Login</a>
+                    <a href="{{ url_for('register') }}" class="btn btn-primary">Get Started</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <main class="hero-section">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="pulse-dot"></span> AI-Powered Genetic Mental Health Assessment
+            </div>
+            <h1 class="hero-title">Unlock Insights Into Your <span class="gradient-text">Mental Wellness</span></h1>
+            <p class="hero-description">
+                MindGen AI leverages genetic datasets, biochemical markers, and personalized lifestyle questionnaires to assess susceptibility to major mental health disorders and recommend precise, tailored care pathways.
+            </p>
+            <div class="hero-actions">
+                {% if session.get('username') %}
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Go to Dashboard</a>
+                {% else %}
+                    <a href="{{ url_for('register') }}" class="btn btn-primary">Start Free Assessment</a>
+                    <a href="{{ url_for('login') }}" class="btn btn-secondary">Login to Account</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="hero-visual">
+            <div class="hero-glow"></div>
+            <div class="hero-card glass-container">
+                <h3 style="margin-bottom: 1rem; font-size: 1.25rem;">Real-time Analysis Statistics</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">Empirical data and genetic risk modeling based on 40+ dynamic markers.</p>
+                
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <h4>98.4%</h4>
+                        <p>Model Accuracy</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4>3 Conditions</h4>
+                        <p>Screened & Subtyped</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4>40+ Markers</h4>
+                        <p>Analyzed Simultaneously</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4>Instant</h4>
+                        <p>PDF Report Generation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

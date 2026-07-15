@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mental Health Assessment - MindGen AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}" defer></script>
+    <style>
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 999px;
+            margin-bottom: 2.5rem;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 25%;
+            background: linear-gradient(90deg, var(--primary-cyan) 0%, var(--accent-indigo) 100%);
+            transition: width 0.4s ease;
+        }
+        .wizard-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bgCanvas" class="bg-canvas"></canvas>
+    <header>
+        <div class="nav-container">
+            <a href="/" class="logo">🧠 MindGen<span>.AI</span></a>
+            <nav class="nav-links">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('previous_reports') }}" class="nav-link">History</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+            </nav>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'error' else 'danger' }}">
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="dashboard-wrapper">
+        <div style="margin-bottom: 2rem; text-align: center;">
+            <h2>Genomic & Biomarker Analysis</h2>
+            <p style="color: var(--text-secondary);">Fill in your genetic data, lab biomarker values, and clinical scores to initiate analysis.</p>
+        </div>
+
+        <div class="glass-container" style="padding: 2.5rem; max-width: 900px; margin: 0 auto;">
+            <!-- Wizard Progress Bar -->
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+
+            <!-- Tab Headers -->
+            <div class="form-tabs">
+                <button type="button" class="form-tab active" onclick="switchTab(0)">1. General Info</button>
+                <button type="button" class="form-tab" onclick="switchTab(1)">2. Biomarkers</button>
+                <button type="button" class="form-tab" onclick="switchTab(2)">3. Genomics</button>
+                <button type="button" class="form-tab" onclick="switchTab(3)">4. Clinical Scores</button>
+            </div>
+
+            <!-- Form -->
+            <form action="{{ url_for('analyze') }}" method="POST" id="assessmentForm">
+                
+                <!-- STEP 1: General Info -->
+                <div class="tab-pane active" id="tab0">
+                    <h3 style="margin-bottom: 1.5rem;" class="gradient-text">General and Demographics</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="age" class="form-label">Age</label>
+                            <input type="number" id="age" name="age" class="form-input" placeholder="e.g. 28" min="1" max="120" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sex" class="form-label">Sex</label>
+                            <select id="sex" name="sex" class="form-input form-select" required>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="family_history" class="form-label">Family History of Mental Health Conditions</label>
+                            <select id="family_history" name="family_history" class="form-input form-select" required>
+                                <option value="Yes">Yes (First-degree relatives)</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="physical_activity" class="form-label">Physical Activity Level</label>
+                            <select id="physical_activity" name="physical_activity" class="form-input form-select" required>
+                                <option value="High">High (Daily exercise)</option>
+                                <option value="Moderate">Moderate (2-3x / week)</option>
+                                <option value="Low">Low (Sedentary)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="sleep_duration" class="form-label">Average Sleep Duration (Hours)</label>
+                            <input type="number" id="sleep_duration" name="sleep_duration" class="form-input" placeholder="e.g. 7.5" step="0.1" min="0" max="24" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Biomarkers -->
+                <div class="tab-pane" id="tab1">
+                    <h3 style="margin-bottom: 1.5rem;" class="gradient-text">Laboratory Biomarkers & Chemistry</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="cortisol" class="form-label">Serum Cortisol Level (ug/dL)</label>
+                            <input type="number" id="cortisol" name="cortisol" class="form-input" placeholder="e.g. 12.5" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="vitamin_d" class="form-label">Vitamin D (25-hydroxy) (ng/mL)</label>
+                            <input type="number" id="vitamin_d" name="vitamin_d" class="form-input" placeholder="e.g. 32.4" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="bdnf_level" class="form-label">BDNF Level (pg/mL)</label>
+                            <input type="number" id="bdnf_level" name="bdnf_level" class="form-input" placeholder="e.g. 24.5" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="crp" class="form-label">C-Reactive Protein (CRP) (mg/L)</label>
+                            <input type="number" id="crp" name="crp" class="form-input" placeholder="e.g. 1.2" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="tryptophan" class="form-label">Serum Tryptophan (umol/L)</label>
+                            <input type="number" id="tryptophan" name="tryptophan" class="form-input" placeholder="e.g. 58.0" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="omega3_index" class="form-label">Omega-3 Index (%)</label>
+                            <input type="number" id="omega3_index" name="omega3_index" class="form-input" placeholder="e.g. 5.5" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="mao_level" class="form-label">Monoamine Oxidase (MAO) Level (nmol/min/mg)</label>
+                            <input type="number" id="mao_level" name="mao_level" class="form-input" placeholder="e.g. 3.2" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="serotonin_level" class="form-label">Blood Serotonin Level (ng/mL)</label>
+                            <input type="number" id="serotonin_level" name="serotonin_level" class="form-input" placeholder="e.g. 145.0" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="hpa_dysregulation" class="form-label">HPA Axis Dysregulation Index (0-1)</label>
+                            <input type="number" id="hpa_dysregulation" name="hpa_dysregulation" class="form-input" placeholder="e.g. 0.45" step="0.01" min="0" max="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="alpha_amylase" class="form-label">Salivary Alpha-Amylase (U/mL)</label>
+                            <input type="number" id="alpha_amylase" name="alpha_amylase" class="form-input" placeholder="e.g. 82.5" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="HRV" class="form-label">Heart Rate Variability (HRV - SDNN ms)</label>
+                            <input type="number" id="HRV" name="HRV" class="form-input" placeholder="e.g. 45.2" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="gaba" class="form-label">GABA Level (umol/L)</label>
+                            <input type="number" id="gaba" name="gaba" class="form-input" placeholder="e.g. 1.8" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="IL6" class="form-label">Interleukin-6 (IL-6) (pg/mL)</label>
+                            <input type="number" id="IL6" name="IL6" class="form-input" placeholder="e.g. 2.1" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="TNF_alpha" class="form-label">TNF-Alpha Level (pg/mL)</label>
+                            <input type="number" id="TNF_alpha" name="TNF_alpha" class="form-input" placeholder="e.g. 4.3" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="Vitamin_B6" class="form-label">Vitamin B6 Level (nmol/L)</label>
+                            <input type="number" id="Vitamin_B6" name="Vitamin_B6" class="form-input" placeholder="e.g. 62.0" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="neuroinflammation_score" class="form-label">Neuroinflammation Index (0-10)</label>
+                            <input type="number" id="neuroinflammation_score" name="neuroinflammation_score" class="form-input" placeholder="e.g. 3.4" step="0.1" min="0" max="10" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="Sympathetic_Activation_Score" class="form-label">Sympathetic Activation Score (0-10)</label>
+                            <input type="number" id="Sympathetic_Activation_Score" name="Sympathetic_Activation_Score" class="form-input" placeholder="e.g. 4.8" step="0.1" min="0" max="10" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="gaba_function" class="form-label">GABAergic Function Score (0-10)</label>
+                            <input type="number" id="gaba_function" name="gaba_function" class="form-input" placeholder="e.g. 6.2" step="0.1" min="0" max="10" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: Genomics -->
+                <div class="tab-pane" id="tab2">
+                    <h3 style="margin-bottom: 1.5rem;" class="gradient-text">Genetic Variants & Pathways</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="genotype_5httlpr" class="form-label">5-HTTLPR (Serotonin Transporter)</label>
+                            <select id="genotype_5httlpr" name="genotype_5httlpr" class="form-input form-select" required>
+                                <option value="S/S">S/S (Short/Short - High Risk)</option>
+                                <option value="S/L">S/L (Short/Long - Medium Risk)</option>
+                                <option value="L/L">L/L (Long/Long - Low Risk)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="genotype_comt" class="form-label">COMT Genotype (Val158Met)</label>
+                            <select id="genotype_comt" name="genotype_comt" class="form-input form-select" required>
+                                <option value="Val/Val">Val/Val (Fast clearance)</option>
+                                <option value="Val/Met">Val/Met (Intermediate)</option>
+                                <option value="Met/Met">Met/Met (Slow clearance)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="genotype_maoa" class="form-label">MAOA Genotype (Monoamine Oxidase A)</label>
+                            <select id="genotype_maoa" name="genotype_maoa" class="form-input form-select" required>
+                                <option value="Low">Low (Warrior gene - slow clearance)</option>
+                                <option value="High">High (Fast clearance)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="mthfr_genotype" class="form-label">MTHFR Genotype (C677T Folate pathway)</label>
+                            <select id="mthfr_genotype" name="mthfr_genotype" class="form-input form-select" required>
+                                <option value="CC">CC (Normal MTHFR activity)</option>
+                                <option value="CT">CT (Intermediate reduction)</option>
+                                <option value="TT">TT (Severe reduction in folate conversion)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="ank3_rs10994336" class="form-label">ANK3 Genotype (rs10994336)</label>
+                            <select id="ank3_rs10994336" name="ank3_rs10994336" class="form-input form-select" required>
+                                <option value="GG">GG (Normal)</option>
+                                <option value="AG">AG (Increased risk)</option>
+                                <option value="AA">AA (High Risk)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cacna1c_rs1006737" class="form-label">CACNA1C Genotype (rs1006737)</label>
+                            <select id="cacna1c_rs1006737" name="cacna1c_rs1006737" class="form-input form-select" required>
+                                <option value="AA">AA (Normal)</option>
+                                <option value="AC">AC (Increased risk)</option>
+                                <option value="CC">CC (High Risk)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="odz4_rs12576775" class="form-label">ODZ4 Genotype (rs12576775)</label>
+                            <select id="odz4_rs12576775" name="odz4_rs12576775" class="form-input form-select" required>
+                                <option value="AA">AA (Normal)</option>
+                                <option value="AG">AG (Increased risk)</option>
+                                <option value="GG">GG (High Risk)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- String-encoded selections mapping back to database fields -->
+                        <div class="form-group">
+                            <label for="glutamate_level" class="form-label">Glutamate Synthesis Level</label>
+                            <select id="glutamate_level" name="glutamate_level" class="form-input form-select" required>
+                                <option value="Normal">Normal</option>
+                                <option value="Elevated">Elevated</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="tryptophan_metabolites" class="form-label">Tryptophan Metabolite Pathways</label>
+                            <select id="tryptophan_metabolites" name="tryptophan_metabolites" class="form-input form-select" required>
+                                <option value="Normal">Normal</option>
+                                <option value="Disrupted">Disrupted</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cortisol_level" class="form-label">Salivary Cortisol Rhythm</label>
+                            <select id="cortisol_level" name="cortisol_level" class="form-input form-select" required>
+                                <option value="Normal">Normal</option>
+                                <option value="Elevated">Elevated</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="circadian_gene_disruption" class="form-label">Circadian Gene Disruption (CLOCK/BMAL)</label>
+                            <select id="circadian_gene_disruption" name="circadian_gene_disruption" class="form-input form-select" required>
+                                <option value="No">No</option>
+                                <option value="Yes">Yes</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="mitochondrial_dysfunction" class="form-label">Mitochondrial Dysfunction Indicators</label>
+                            <select id="mitochondrial_dysfunction" name="mitochondrial_dysfunction" class="form-input form-select" required>
+                                <option value="No">No</option>
+                                <option value="Yes">Yes</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="neuroinflammation" class="form-label">Neuroinflammatory Pathways Activated</label>
+                            <select id="neuroinflammation" name="neuroinflammation" class="form-input form-select" required>
+                                <option value="No">No</option>
+                                <option value="Yes">Yes</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="omega3_intake" class="form-label">Dietary Omega-3 Status</label>
+                            <select id="omega3_intake" name="omega3_intake" class="form-input form-select" required>
+                                <option value="Normal">Normal</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="folate_level" class="form-label">Dietary Folate / B-Vitamin Status</label>
+                            <select id="folate_level" name="folate_level" class="form-input form-select" required>
+                                <option value="Normal">Normal</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="vitamind_level" class="form-label">Vitamin D Absorption Efficiency</label>
+                            <select id="vitamind_level" name="vitamind_level" class="form-input form-select" required>
+                                <option value="Normal">Normal</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 4: Clinical Scores -->
+                <div class="tab-pane" id="tab3">
+                    <h3 style="margin-bottom: 1.5rem;" class="gradient-text">Standardized Clinical Severity Surveys</h3>
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label for="phq9_score" class="form-label">PHQ-9 Score (Patient Health Questionnaire - Depression: 0 to 27)</label>
+                            <input type="number" id="phq9_score" name="phq9_score" class="form-input" placeholder="e.g. 14" min="0" max="27" required>
+                            <small style="color: var(--text-secondary); margin-top: 0.25rem; display: block;">Scoring: 0-4: Minimal, 5-9: Mild, 10-14: Moderate, 15-19: Moderately Severe, 20-27: Severe</small>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label for="anxiety_score" class="form-label">GAD-7 Score (Generalized Anxiety Disorder: 0 to 21)</label>
+                            <input type="number" id="anxiety_score" name="anxiety_score" class="form-input" placeholder="e.g. 8" min="0" max="21" required>
+                            <small style="color: var(--text-secondary); margin-top: 0.25rem; display: block;">Scoring: 0-4: Minimal, 5-9: Mild, 10-14: Moderate, 15-21: Severe</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wizard Actions -->
+                <div class="wizard-buttons">
+                    <button type="button" class="btn btn-secondary" id="prevBtn" onclick="prevStep()">Previous</button>
+                    <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextStep()">Next Step</button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <!-- Fullscreen Scanning Overlay -->
+    <div class="scanning-overlay" id="scanningOverlay">
+        <div class="scanning-spinner-box">
+            <div class="scanning-circle"></div>
+            <div class="scanning-inner-circle"></div>
+            <div class="scanning-icon">🧬</div>
+        </div>
+        <div class="scanning-text gradient-text">ANALYZING GENOMIC PROFILE</div>
+        <div class="scanning-status" id="scanningStatus">Initializing sequence alignment...</div>
+        <div class="scanning-bar-bg">
+            <div class="scanning-bar-fill" id="scanningBarFill"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 0;
+        const tabs = document.querySelectorAll('.form-tab');
+        const panes = document.querySelectorAll('.tab-pane');
+        const progressFill = document.getElementById('progressFill');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const form = document.getElementById('assessmentForm');
+
+        let isAnimating = false;
+
+        function transitionToTab(newTab) {
+            if (newTab === currentTab || isAnimating) return;
+            isAnimating = true;
+            
+            const oldPane = panes[currentTab];
+            const newPane = panes[newTab];
+            const direction = newTab > currentTab ? 1 : -1;
+            
+            // Update active tabs immediately
+            tabs.forEach((tab, index) => {
+                tab.classList.toggle('active', index === newTab);
+            });
+            
+            // Update progress bar
+            const percent = ((newTab + 1) / tabs.length) * 100;
+            progressFill.style.width = percent + '%';
+            
+            // Update buttons
+            if (newTab === 0) {
+                prevBtn.style.visibility = 'hidden';
+            } else {
+                prevBtn.style.visibility = 'visible';
+            }
+
+            if (newTab === tabs.length - 1) {
+                nextBtn.innerHTML = 'Initiate Diagnosis';
+                nextBtn.classList.add('btn-primary');
+            } else {
+                nextBtn.innerHTML = 'Next Step';
+                nextBtn.classList.remove('btn-primary');
+            }
+
+            currentTab = newTab;
+
+            if (typeof gsap !== 'undefined') {
+                gsap.to(oldPane, {
+                    duration: 0.2,
+                    x: -50 * direction,
+                    opacity: 0,
+                    ease: "power2.in",
+                    onComplete: () => {
+                        oldPane.classList.remove('active');
+                        gsap.set(oldPane, { x: 0, opacity: 1 }); // reset position
+                        
+                        newPane.classList.add('active');
+                        gsap.fromTo(newPane, 
+                            { x: 50 * direction, opacity: 0 },
+                            { duration: 0.3, x: 0, opacity: 1, ease: "power2.out", onComplete: () => { isAnimating = false; } }
+                        );
+                    }
+                });
+            } else {
+                oldPane.classList.remove('active');
+                newPane.classList.add('active');
+                isAnimating = false;
+            }
+        }
+
+        function switchTab(stepIndex) {
+            if (stepIndex > currentTab) {
+                if (!validateCurrentStep()) return;
+            }
+            transitionToTab(stepIndex);
+        }
+
+        function triggerAnalysisScanner() {
+            // Show scanning overlay
+            const overlay = document.getElementById('scanningOverlay');
+            overlay.classList.add('active');
+            
+            // Animate progress bar
+            const barFill = document.getElementById('scanningBarFill');
+            const statusText = document.getElementById('scanningStatus');
+            const stages = [
+                { text: "Extracting Genomic Sequencing Markers...", duration: 800 },
+                { text: "Aligning Hormone & Biochemistry Levels...", duration: 1000 },
+                { text: "Mapping Cognitive PHQ/GAD Thresholds...", duration: 800 },
+                { text: "Compiling Care Recommendations...", duration: 600 }
+            ];
+            
+            let currentStage = 0;
+            let progress = 0;
+            
+            function nextStage() {
+                if (currentStage >= stages.length) {
+                    form.submit(); // Final submit!
+                    return;
+                }
+                
+                statusText.innerHTML = stages[currentStage].text;
+                
+                // Animate progress percentage
+                let step = (currentStage + 1) * (100 / stages.length);
+                let start = progress;
+                let duration = stages[currentStage].duration;
+                let startTime = null;
+                
+                function animateBar(timestamp) {
+                    if (!startTime) startTime = timestamp;
+                    let elapsed = timestamp - startTime;
+                    let run = Math.min(elapsed / duration, 1);
+                    progress = start + (step - start) * run;
+                    barFill.style.width = progress + '%';
+                    
+                    if (run < 1) {
+                        requestAnimationFrame(animateBar);
+                    } else {
+                        currentStage++;
+                        setTimeout(nextStage, 150);
+                    }
+                }
+                
+                requestAnimationFrame(animateBar);
+            }
+            
+            nextStage();
+        }
+
+        function nextStep() {
+            if (currentTab < tabs.length - 1) {
+                if (validateCurrentStep()) {
+                    transitionToTab(currentTab + 1);
+                }
+            } else {
+                // Submit form via scanner animation
+                if (validateCurrentStep()) {
+                    triggerAnalysisScanner();
+                }
+            }
+        }
+
+        function prevStep() {
+            if (currentTab > 0) {
+                transitionToTab(currentTab - 1);
+            }
+        }
+
+        function validateCurrentStep() {
+            const inputs = panes[currentTab].querySelectorAll('input, select');
+            let valid = true;
+            inputs.forEach(input => {
+                if (!input.checkValidity()) {
+                    input.reportValidity();
+                    valid = false;
+                }
+            });
+            return valid;
+        }
+
+        // Auto-advance cursor focus on pressing Enter
+        const formInputs = Array.from(form.querySelectorAll('input, select'));
+        formInputs.forEach((input, index) => {
+            input.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); // Prevent standard form submit on Enter
+                    
+                    const nextInput = formInputs[index + 1];
+                    if (nextInput) {
+                        const nextPane = nextInput.closest('.tab-pane');
+                        const paneIndex = Array.from(panes).indexOf(nextPane);
+                        
+                        if (paneIndex !== currentTab) {
+                            if (validateCurrentStep()) {
+                                transitionToTab(paneIndex);
+                                setTimeout(() => nextInput.focus(), 350);
+                            }
+                        } else {
+                            nextInput.focus();
+                        }
+                    } else {
+                        // Submit on last input if valid via scanner animation
+                        if (validateCurrentStep()) {
+                            triggerAnalysisScanner();
+                        }
+                    }
+                }
+            });
+        });
+
+        // Initialize Wizard
+        if (currentTab === 0) {
+            prevBtn.style.visibility = 'hidden';
+        }
+    </script>
+</body>
+</html>

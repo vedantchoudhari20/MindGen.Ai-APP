@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - MindGen AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}" defer></script>
+</head>
+<body>
+    <canvas id="bgCanvas" class="bg-canvas"></canvas>
+    <header>
+        <div class="nav-container">
+            <a href="/" class="logo">🧠 MindGen<span>.AI</span></a>
+            <nav class="nav-links">
+                <a href="{{ url_for('dashboard') }}" class="nav-link active">Dashboard</a>
+                <a href="{{ url_for('previous_reports') }}" class="nav-link">History</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+            </nav>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'error' else 'danger' }}">
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="dashboard-wrapper">
+        <div class="welcome-banner">
+            <div class="welcome-text">
+                <h2>Welcome, <span class="gradient-text">{{ session.get('username') }}</span></h2>
+                <p>Access your assessment portal and view personalized care recommendations.</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="glass-container dashboard-card" style="grid-column: 1 / -1;">
+                <div class="card-header-actions">
+                    <h3>Assessment & Analysis Tools</h3>
+                </div>
+                
+                <div class="feature-menu">
+                    <a href="{{ url_for('analyze') }}" class="feature-box">
+                        <div class="feature-icon">🧪</div>
+                        <h3>New Assessment</h3>
+                        <p>Analyze genetic, metabolic, and clinical variables to generate risk predictions and recommended treatment paths.</p>
+                    </a>
+                    
+                    <a href="{{ url_for('previous_reports') }}" class="feature-box">
+                        <div class="feature-icon">📁</div>
+                        <h3>Assessment History</h3>
+                        <p>View, compare, and download PDF copies of your previous clinical predictions and treatment plans.</p>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

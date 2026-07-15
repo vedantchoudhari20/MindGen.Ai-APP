@@ -25,5 +25,23 @@
         "security_question": "What city were you born in?",
         "security_answer": "vc",
         "created_at": "2025-09-18T17:59:50.820909"
+    },
+    {
+        "id": "7a48a1b4-e218-4128-8787-17bc80edaffc",
+        "name": "Verification User",
+        "username": "verifier_user",
+        "password": "$2b$12$JeAOAuIpG9u8ahWB.356Le3YYzqC7fHOvQ96BaB/5EkHmfIufl1Aa",
+        "security_question": "What city were you born in?",
+        "security_answer": "$2b$12$NW37uGFxGcwklhsxDuedHuC8hEE4P/kTyRhVPppiGgfQyXjOuRFOW",
+        "created_at": "2026-07-15T18:46:47.553092"
+    },
+    {
+        "id": "3ef5b573-64f2-4c88-aba5-25abf4991f1e",
+        "name": "vedant",
+        "username": "vedant",
+        "password": "$2b$12$18zNDqZ5zRay6CcOARKUPelgTp4YucqSUC6Y8Zq6CCuJuhKA46h4e",
+        "security_question": "What was your first school?",
+        "security_answer": "$2b$12$ivbDAprXN391SE4BpEJcmublVNhp1/gNnZAm3LE7ha5ZYfsKXNvz2",
+        "created_at": "2026-07-15T18:52:42.271715"
     }
 ]

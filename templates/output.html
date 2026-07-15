@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment Results - MindGen AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}" defer></script>
+</head>
+<body>
+    <canvas id="bgCanvas" class="bg-canvas"></canvas>
+    <header>
+        <div class="nav-container">
+            <a href="/" class="logo">🧠 MindGen<span>.AI</span></a>
+            <nav class="nav-links">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('previous_reports') }}" class="nav-link">History</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+            </nav>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'error' else 'danger' }}">
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="dashboard-wrapper">
+        {% if results %}
+            <div class="results-header">
+                <h2>Analysis Results</h2>
+                <p style="color: var(--text-secondary);">Generated on {{ results.timestamp.strftime('%B %d, %Y at %I:%M %p') if results.timestamp else 'Today' }}</p>
+            </div>
+
+            <!-- Diagnostics Summary Cards -->
+            <div class="results-grid">
+                <div class="result-card glass-container">
+                    <h3 style="color: var(--text-secondary); font-size: 0.95rem;">Depression Susceptibility</h3>
+                    <div class="result-value {% if results.Depression != 'False' %}positive{% else %}negative{% endif %}">
+                        {{ results.Depression if results.Depression != 'False' else 'No Risk Detected' }}
+                    </div>
+                </div>
+                
+                <div class="result-card glass-container">
+                    <h3 style="color: var(--text-secondary); font-size: 0.95rem;">Bipolar Disorder Risk</h3>
+                    <div class="result-value {% if results.BipolarDisorder != 'False' %}positive{% else %}negative{% endif %}">
+                        {{ results.BipolarDisorder if results.BipolarDisorder != 'False' else 'No Risk Detected' }}
+                    </div>
+                </div>
+
+                <div class="result-card glass-container">
+                    <h3 style="color: var(--text-secondary); font-size: 0.95rem;">Anxiety Susceptibility</h3>
+                    <div class="result-value {% if results.Anxiety != 'False' %}positive{% else %}negative{% endif %}">
+                        {{ results.Anxiety if results.Anxiety != 'False' else 'No Risk Detected' }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personalized Treatment Path Report -->
+            <div class="glass-container" style="padding: 2.5rem; margin-bottom: 2rem;">
+                <div class="card-header-actions" style="border: none;">
+                    <h3>Personalized Recommended Path</h3>
+                    {% if results.id %}
+                        <a href="{{ url_for('download_report', report_id=results.id) }}" class="btn btn-primary">⬇️ Download PDF Report</a>
+                    {% endif %}
+                </div>
+                
+                <div class="report-text-container">
+                    {{ results.Report }}
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Return to Dashboard</a>
+                <a href="{{ url_for('previous_reports') }}" class="btn btn-secondary">View Assessment History</a>
+            </div>
+        {% else %}
+            <div class="glass-container" style="padding: 4rem 2rem; text-align: center; max-width: 600px; margin: 4rem auto;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+                <h3>No Assessment Results Found</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">It seems you haven't run any health analysis assessment yet.</p>
+                <a href="{{ url_for('analyze') }}" class="btn btn-primary">Start New Assessment</a>
+            </div>
+        {% endif %}
+    </main>
+</body>
+</html>

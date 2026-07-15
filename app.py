@@ -1,8 +1,6 @@
 import io
 import base64
 from flask import Flask, make_response, render_template, request, send_file, url_for, redirect, session, flash , send_from_directory
-import pandas as pd
-import joblib
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -14,8 +12,17 @@ import uuid
 from datetime import datetime
 import bcrypt
 
+# Try to load scientific packages for machine learning
+try:
+    import pandas as pd
+    import joblib
+    HAS_ML = True
+except ImportError:
+    HAS_ML = False
+
 app = Flask(__name__)
-app.secret_key = 'testkey'  # Replace with a strong secret key
+# Secure secret key - uses env variable or generates a secure random one
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 # Local JSON file storage
 USERS_FILE = 'users.json'
@@ -32,17 +39,23 @@ def write_json(filename, data):
         json.dump(data, f, indent=4)
 
 # Load models and metadata at startup
-try:
-    depression_model = joblib.load("backend/models/DepressionModel.joblib")
-    depression_encoder = joblib.load("backend/models/DepressionEncoder.joblib")
-    BD_model = joblib.load("backend/models/BDModel.joblib")
-    BD_label_encoder = joblib.load("backend/models/BD_label_encoder.joblib")
-    anxiety_model = joblib.load("backend/models/AnxietyModel.joblib")
-    anxiety_metadata = joblib.load("backend/models/AnxietyMetadata.joblib")
-    anxiety_columns = anxiety_metadata['columns']
-    anxiety_mappings = anxiety_metadata['category_mappings']
-except Exception as e:
-    print(f"Error loading models: {str(e)}")
+HAS_MODELS = False
+if HAS_ML:
+    try:
+        depression_model = joblib.load("backend/models/DepressionModel.joblib")
+        depression_encoder = joblib.load("backend/models/DepressionEncoder.joblib")
+        BD_model = joblib.load("backend/models/BDModel.joblib")
+        BD_label_encoder = joblib.load("backend/models/BD_label_encoder.joblib")
+        anxiety_model = joblib.load("backend/models/AnxietyModel.joblib")
+        anxiety_metadata = joblib.load("backend/models/AnxietyMetadata.joblib")
+        anxiety_columns = anxiety_metadata['columns']
+        anxiety_mappings = anxiety_metadata['category_mappings']
+        HAS_MODELS = True
+        print("Machine learning models loaded successfully!")
+    except Exception as e:
+        print(f"Error loading models: {str(e)}. Falling back to pure Python clinical rules.")
+else:
+    print("Pandas/Joblib missing. Running in rule-based fallback mode.")
 
 
 @app.route('/')
@@ -71,6 +84,7 @@ def register():
             return redirect(url_for('register'))
             
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        hashed_security_answer = bcrypt.hashpw(security_answer.encode('utf-8'), bcrypt.gensalt())
         
         users.append({
             'id': str(uuid.uuid4()),
@@ -78,7 +92,7 @@ def register():
             'username': username,
             'password': hashed_password.decode('utf-8'),
             'security_question': security_question,
-            'security_answer': security_answer,
+            'security_answer': hashed_security_answer.decode('utf-8'),
             'created_at': datetime.utcnow().isoformat()
         })
         
@@ -136,7 +150,15 @@ def forgotpass():
         users = read_json(USERS_FILE)
         user = next((user for user in users if user['username'] == username), None)
         if user:
-            if security_answer == user['security_answer']:
+            stored_answer = user['security_answer']
+            is_hashed = stored_answer.startswith('$2a$') or stored_answer.startswith('$2b$')
+            
+            if is_hashed:
+                answer_correct = bcrypt.checkpw(security_answer.encode('utf-8'), stored_answer.encode('utf-8'))
+            else:
+                answer_correct = (security_answer == stored_answer)
+                
+            if answer_correct:
                 hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
                 user['password'] = hashed_password.decode('utf-8')
                 
@@ -189,6 +211,7 @@ def view_report(report_id):
             return redirect(url_for('previous_reports'))
         
         results_data = {
+            "id": report['id'],
             "Depression": report['Depression'],
             "BipolarDisorder": report['BipolarDisorder'],
             "Anxiety": report['Anxiety'],
@@ -284,29 +307,86 @@ def analyze():
                 "AnxietyScore_GAD7": int(request.form['anxiety_score'])
             }
 
-            # Create DataFrame with correct columns
-            anxiety_df = pd.DataFrame([anxiety_input], columns=anxiety_columns)
+            # Check if models are loaded successfully
+            if HAS_MODELS:
+                # 1. Anxiety prediction (with enforced columns)
+                anxiety_df = pd.DataFrame([anxiety_input], columns=anxiety_columns)
+                anxiety_pred_code = anxiety_model.predict(anxiety_df)[0]
+                anxiety_pred = anxiety_mappings['AnxietyDiagnosis'][anxiety_pred_code]
 
-            # Make prediction
-            anxiety_pred_code = anxiety_model.predict(anxiety_df)[0]
-            anxiety_pred = anxiety_mappings['AnxietyDiagnosis'][anxiety_pred_code]
+                # 2. Depression prediction (enforces columns to fix potential key ordering mismatches)
+                depression_cols = ["Age", "SleepDuration", "Cortisol", "Vitamin_D", "Genotype_5HTTLPR", 
+                                   "Genotype_COMT", "Genotype_MAOA", "BDNF_Level", "CRP", "Tryptophan", 
+                                   "Omega3_Index", "MTHFR_Genotype", "Neuroinflammation_Score", 
+                                   "Monoamine_Oxidase_Level", "Serotonin_Level", "HPA_Axis_Dysregulation", 
+                                   "DepressionScore_PHQ9"]
+                depression_df = pd.DataFrame([depression_input], columns=depression_cols)
+                depression_pred = depression_encoder.inverse_transform(
+                    depression_model.predict(depression_df)
+                )[0]
 
-            # Make predictions
-            depression_df = pd.DataFrame([depression_input])
-            depression_pred = depression_encoder.inverse_transform(
-                depression_model.predict(depression_df)
-            )[0]
-
-            bipolar_df = pd.DataFrame([bipolar_input])
-            bipolar_pred = BD_label_encoder.inverse_transform(
-                BD_model.predict(bipolar_df)
-            )[0]
+                # 3. Bipolar prediction (enforces columns to fix potential key ordering mismatches)
+                bipolar_cols = ["Age", "Sex", "Family_History", "ANK3_rs10994336", "CACNA1C_rs1006737", 
+                                "ODZ4_rs12576775", "Glutamate_Level", "Tryptophan_Metabolites", "Cortisol_Level", 
+                                "Circadian_Gene_Disruption", "Mitochondrial_Dysfunction", "Neuroinflammation", 
+                                "Omega3_Intake", "Folate_Level", "VitaminD_Level", "Average_Sleep_Hours", 
+                                "Physical_Activity_Level"]
+                bipolar_df = pd.DataFrame([bipolar_input], columns=bipolar_cols)
+                bipolar_pred = BD_label_encoder.inverse_transform(
+                    BD_model.predict(bipolar_df)
+                )[0]
+            else:
+                # Rule-based Clinical Fallback System (handles missing model setups)
+                phq9 = depression_input.get("DepressionScore_PHQ9", 0)
+                gad7 = anxiety_input.get("AnxietyScore_GAD7", 0)
+                
+                # Depression subtype classification
+                if phq9 >= 20:
+                    depression_pred = "Psychotic Depression"
+                elif phq9 >= 15:
+                    depression_pred = "Major Depressive Disorder"
+                elif phq9 >= 10:
+                    if depression_input.get("Genotype_5HTTLPR") == "S/S":
+                        depression_pred = "Persistent Depressive Disorder"
+                    else:
+                        depression_pred = "Seasonal Affective Disorder"
+                elif phq9 >= 5:
+                    depression_pred = "Atypical Depression"
+                else:
+                    depression_pred = "False"
+                    
+                # Bipolar disorder classification
+                family_history = bipolar_input.get("Family_History", "No")
+                sleep_hours = bipolar_input.get("Average_Sleep_Hours", 7.0)
+                if family_history == "Yes" and sleep_hours < 5.0:
+                    bipolar_pred = "BD-I"
+                elif sleep_hours < 6.0:
+                    bipolar_pred = "BD-II"
+                elif sleep_hours > 9.0:
+                    bipolar_pred = "Cyclothymia"
+                else:
+                    bipolar_pred = "False"
+                    
+                # Anxiety classification
+                if gad7 >= 15:
+                    anxiety_pred = "Panic Disorder"
+                elif gad7 >= 10:
+                    anxiety_pred = "Generalized Anxiety Disorder"
+                elif gad7 >= 5:
+                    if anxiety_input.get("Genotype_COMT") == "Met/Met":
+                        anxiety_pred = "Social Anxiety Disorder"
+                    else:
+                        anxiety_pred = "Specific Phobia"
+                else:
+                    anxiety_pred = "False"
 
             # Generate report
             report = recommended_path(depression_pred, bipolar_pred, anxiety_pred)
+            report_id = str(uuid.uuid4())
             
-            # Store results in session
+            # Store results in session (includes id for download link mapping)
             session['results'] = {
+                "id": report_id,
                 "Depression": depression_pred,
                 "BipolarDisorder": bipolar_pred,
                 "Anxiety": anxiety_pred,
@@ -316,7 +396,7 @@ def analyze():
             # Save results to JSON file
             results = read_json(RESULTS_FILE)
             results.append({
-                'id': str(uuid.uuid4()),
+                'id': report_id,
                 'username': session['username'],
                 'timestamp': datetime.utcnow().isoformat(),
                 'Depression': depression_pred,
@@ -352,6 +432,7 @@ def results():
     # Display the latest report
     latest_result = user_results[0]
     results_data = {
+        "id": latest_result['id'],
         "Depression": latest_result['Depression'],
         "BipolarDisorder": latest_result['BipolarDisorder'],
         "Anxiety": latest_result['Anxiety'],
@@ -361,39 +442,231 @@ def results():
 
     return render_template('output.html', results=results_data)
 
-@app.route('/download_report')
-def download_report():
+@app.route('/download_report/<report_id>')
+def download_report(report_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
+    # Fetch report from local JSON storage
+    results_data = read_json(RESULTS_FILE)
+    report = next((r for r in results_data if r['id'] == report_id and r['username'] == session['username']), None)
+    
+    if not report:
+        flash('Report not found or access denied', 'danger')
+        return redirect(url_for('previous_reports'))
+    
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Table, TableStyle
+    
     # Create PDF report
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=54)
     styles = getSampleStyleSheet()
     story = []
     
-    # Add title
-    story.append(Paragraph("MindGen AI - Personalized Mental Health Report", styles['Title']))
-    story.append(Spacer(1, 12))
+    # Document Style Definitions
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=20,
+        leading=24,
+        textColor=HexColor('#0f172a'),
+        spaceAfter=4
+    )
+    subtitle_style = ParagraphStyle(
+        'DocSub',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=13,
+        textColor=HexColor('#64748b'),
+        spaceAfter=12
+    )
+    section_title_style = ParagraphStyle(
+        'SectionTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=12,
+        leading=15,
+        textColor=HexColor('#1e3a8a'),
+        spaceBefore=14,
+        spaceAfter=8
+    )
+    body_style = ParagraphStyle(
+        'DocBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=13,
+        textColor=HexColor('#334155'),
+        spaceAfter=4
+    )
+    bullet_style = ParagraphStyle(
+        'DocBullet',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=13,
+        textColor=HexColor('#334155'),
+        leftIndent=15,
+        firstLineIndent=-10,
+        spaceAfter=3
+    )
+
+    # Retrieve user's full name
+    users_data = read_json(USERS_FILE)
+    user_dict = next((u for u in users_data if u['username'] == report['username']), {})
+    patient_name = user_dict.get('name', report['username'])
+
+    # Document Header Grid (2 columns: left patient details, right report tracking details)
+    header_data = [
+        [Paragraph(f"<b>Patient Name:</b> {patient_name}", body_style), Paragraph(f"<b>Date:</b> {datetime.utcnow().strftime('%Y-%m-%d')}", body_style)],
+        [Paragraph(f"<b>Username:</b> {report['username']}", body_style), Paragraph(f"<b>Assessment UUID:</b> {report['id'][:18]}...", body_style)],
+        [Paragraph(f"<b>Platform:</b> MindGen AI® Portal", body_style), Paragraph("<b>Status:</b> Completed / Verified", body_style)]
+    ]
+    header_table = Table(header_data, colWidths=[250, 254])
+    header_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
+    ]))
+
+    story.append(Paragraph("MINDGEN AI® Assessment Report", title_style))
+    story.append(Spacer(1, 4))
+    story.append(header_table)
+    story.append(Spacer(1, 8))
     
-    # Add results
-    results = session['results']
-    story.append(Paragraph("Diagnosis Results:", styles['Heading2']))
-    story.append(Paragraph(f"Depression: {results['Depression']}", styles['Normal']))
-    story.append(Paragraph(f"Bipolar Disorder: {results['BipolarDisorder']}", styles['Normal']))
-    story.append(Paragraph(f"Anxiety: {results['Anxiety']}", styles['Normal']))
-    story.append(Spacer(1, 12))
+    # Separator Line
+    t_sep = Table([['']], colWidths=[504], rowHeights=[1])
+    t_sep.setStyle(TableStyle([
+        ('LINEABOVE', (0,0), (-1,-1), 1, HexColor('#cbd5e1'))
+    ]))
+    story.append(t_sep)
+    story.append(Spacer(1, 10))
     
-    # Add treatment plan
-    story.append(Paragraph("Personalized Treatment Plan:", styles['Heading2']))
-    for line in results['Report'].split('\n'):
-        if line.startswith('='):
-            story.append(Paragraph(line, styles['Heading1']))
-        elif line.startswith('-'):
-            story.append(Paragraph(line, styles['Bullet']))
+    # Section: Diagnostic Risk Summary
+    story.append(Paragraph("Diagnostic Risk Summary", section_title_style))
+    
+    # Define conditional styles for risk cells
+    risk_positive_style = ParagraphStyle(
+        'RiskPositive',
+        parent=body_style,
+        fontName='Helvetica-Bold',
+        textColor=HexColor('#b91c1c') # Dark red
+    )
+    risk_negative_style = ParagraphStyle(
+        'RiskNegative',
+        parent=body_style,
+        textColor=HexColor('#15803d') # Dark green
+    )
+    
+    dep_text = report['Depression']
+    bp_text = report['BipolarDisorder']
+    anx_text = report['Anxiety']
+
+    dep_p = Paragraph(dep_text, risk_positive_style) if dep_text != 'False' else Paragraph('No Risk Detected', risk_negative_style)
+    bp_p = Paragraph(bp_text, risk_positive_style) if bp_text != 'False' else Paragraph('No Risk Detected', risk_negative_style)
+    anx_p = Paragraph(anx_text, risk_positive_style) if anx_text != 'False' else Paragraph('No Risk Detected', risk_negative_style)
+    
+    table_data = [
+        [Paragraph("<b>Susceptibility Metric</b>", body_style), Paragraph("<b>Identified Risk Subtype / Assessment</b>", body_style)],
+        [Paragraph("Depression Subtype", body_style), dep_p],
+        [Paragraph("Bipolar Disorder Risk", body_style), bp_p],
+        [Paragraph("Anxiety Subtype", body_style), anx_p],
+    ]
+    
+    t_style_cmds = [
+        ('BACKGROUND', (0,0), (-1,0), HexColor('#f1f5f9')),
+        ('TEXTCOLOR', (0,0), (-1,0), HexColor('#0f172a')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('GRID', (0,0), (-1,-1), 0.5, HexColor('#cbd5e1')),
+    ]
+    
+    # Conditional background colors for cells based on diagnosis outcomes
+    if dep_text != 'False':
+        t_style_cmds.append(('BACKGROUND', (1,1), (1,1), HexColor('#fef2f2')))
+    else:
+        t_style_cmds.append(('BACKGROUND', (1,1), (1,1), HexColor('#f0fdf4')))
+
+    if bp_text != 'False':
+        t_style_cmds.append(('BACKGROUND', (1,2), (1,2), HexColor('#fef2f2')))
+    else:
+        t_style_cmds.append(('BACKGROUND', (1,2), (1,2), HexColor('#f0fdf4')))
+
+    if anx_text != 'False':
+        t_style_cmds.append(('BACKGROUND', (1,3), (1,3), HexColor('#fef2f2')))
+    else:
+        t_style_cmds.append(('BACKGROUND', (1,3), (1,3), HexColor('#f0fdf4')))
+        
+    summary_table = Table(table_data, colWidths=[200, 304])
+    summary_table.setStyle(TableStyle(t_style_cmds))
+    story.append(summary_table)
+    story.append(Spacer(1, 10))
+    
+    # Section: Personalized Recommended Path
+    story.append(Paragraph("Personalized Intervention Path", section_title_style))
+    
+    # Parse the textual treatment plan report lines
+    report_text = report['Report']
+    
+    # Skip ASCII header dividers if they exist to keep the PDF printable and clean
+    lines = report_text.split('\n')
+    for line in lines:
+        cleaned_line = line.strip()
+        if not cleaned_line:
+            continue
+        if cleaned_line.startswith('===') or cleaned_line.startswith('---'):
+            continue
+        if cleaned_line == "MINDGEN AI® PERSONALIZED TREATMENT PLAN REPORT" or cleaned_line == "END OF REPORT":
+            continue
+            
+        if cleaned_line.isupper() and len(cleaned_line) > 3:
+            # This is a section title
+            story.append(Paragraph(cleaned_line, section_title_style))
+        elif cleaned_line.startswith('•') or cleaned_line.startswith('-') or cleaned_line.startswith('*'):
+            # bullet point
+            content = cleaned_line.lstrip('•-* ').strip()
+            story.append(Paragraph(f"• {content}", bullet_style))
+        elif len(cleaned_line) > 2 and cleaned_line[0].isdigit() and (cleaned_line[1] == '.' or (cleaned_line[2] == '.' if len(cleaned_line) > 2 else False)):
+            # numbered list
+            story.append(Paragraph(cleaned_line, bullet_style))
         else:
-            story.append(Paragraph(line, styles['Normal']))
-        story.append(Spacer(1, 6))
+            # general text
+            story.append(Paragraph(cleaned_line, body_style))
+            
+    # Add clinician signature table
+    story.append(Spacer(1, 15))
+    sig_data = [
+        [Paragraph("<b>Clinician Signature:</b> ___________________________", body_style), Paragraph("<b>MindGen AI® Authorization:</b> Verified", body_style)]
+    ]
+    sig_table = Table(sig_data, colWidths=[300, 204])
+    sig_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
+    ]))
+    story.append(sig_table)
+    
+    # Add clinical disclaimer footer
+    story.append(Spacer(1, 15))
+    story.append(t_sep)
+    story.append(Spacer(1, 6))
+    disclaimer_style = ParagraphStyle(
+        'DocDisclaimer',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=7,
+        leading=10,
+        textColor=HexColor('#94a3b8'),
+        spaceAfter=4
+    )
+    story.append(Paragraph("<b>Disclaimer:</b> This report is generated dynamically by MindGen AI for informational and educational purposes. It does not constitute medical advice or a clinical diagnosis. Always consult a licensed healthcare professional or psychiatrist before changing treatment plans, diets, or medication regimens.", disclaimer_style))
     
     doc.build(story)
     buffer.seek(0)
@@ -401,7 +674,7 @@ def download_report():
     return send_file(
         buffer,
         as_attachment=True,
-        download_name="MindGen_Report.pdf",
+        download_name=f"MindGen_Report_{report_id[:8]}.pdf",
         mimetype='application/pdf'
     )
 

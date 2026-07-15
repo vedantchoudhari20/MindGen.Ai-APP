@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment History - MindGen AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}" defer></script>
+</head>
+<body>
+    <canvas id="bgCanvas" class="bg-canvas"></canvas>
+    <header>
+        <div class="nav-container">
+            <a href="/" class="logo">🧠 MindGen<span>.AI</span></a>
+            <nav class="nav-links">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('previous_reports') }}" class="nav-link active">History</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+            </nav>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'error' else 'danger' }}">
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="dashboard-wrapper">
+        <div class="welcome-banner">
+            <div class="welcome-text">
+                <h2>Assessment History</h2>
+                <p>Manage and download your historical mental health assessments.</p>
+            </div>
+            <a href="{{ url_for('analyze') }}" class="btn btn-primary">➕ Start New Assessment</a>
+        </div>
+
+        <div class="glass-container" style="padding: 2rem;">
+            {% if reports %}
+                <div class="table-container">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Date Analyzed</th>
+                                <th>Depression Status</th>
+                                <th>Bipolar Status</th>
+                                <th>Anxiety Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in reports %}
+                                <tr>
+                                    <td>{{ report.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</td>
+                                    <td>
+                                        <span style="color: {% if report.Depression != 'False' %}var(--danger-red){% else %}var(--primary-teal){% endif %}; font-weight: 600;">
+                                            {{ report.Depression if report.Depression != 'False' else 'No Risk' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span style="color: {% if report.BipolarDisorder != 'False' %}var(--danger-red){% else %}var(--primary-teal){% endif %}; font-weight: 600;">
+                                            {{ report.BipolarDisorder if report.BipolarDisorder != 'False' else 'No Risk' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span style="color: {% if report.Anxiety != 'False' %}var(--danger-red){% else %}var(--primary-teal){% endif %}; font-weight: 600;">
+                                            {{ report.Anxiety if report.Anxiety != 'False' else 'No Risk' }}
+                                        </span>
+                                    </td>
+                                    <td style="text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                        <a href="{{ url_for('view_report', report_id=report.id) }}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">View</a>
+                                        <a href="{{ url_for('download_report', report_id=report.id) }}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">PDF</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div style="text-align: center; padding: 4rem 1rem;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem;">📭</div>
+                    <h3>No Historical Reports Found</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 2rem; margin-top: 0.5rem;">Start an assessment to generate your first personalized health report.</p>
+                    <a href="{{ url_for('analyze') }}" class="btn btn-primary">Start New Assessment</a>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>
